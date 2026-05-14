@@ -3,7 +3,7 @@
 This repository provides a cleaned and self-contained implementation of **HMAN**:  
 **Hierarchical Molecular Attention Network for Few-Shot Molecular Property Prediction**.
 
-HMAN is designed for few-shot molecular property prediction, where each molecular property task is formulated as a **2-way K-shot binary classification problem**. The model identifies task-specific key substructures through hierarchical attention and improves molecular property prediction by combining atom-level and molecule-level attention.
+HMAN is designed for few-shot molecular property prediction, where each molecular property task is formulated as a **2-way K-shot classification problem**. The model identifies task-specific key substructures through hierarchical attention and improves molecular property prediction by combining atom-level and molecule-level attention.
 
 
 
@@ -41,17 +41,8 @@ python main.py --dataset sider --shot 10
 
 The trained model checkpoints and logs will be saved automatically.
 
-## 3. Model Evaluation
 
-To evaluate a trained HMAN model, run:
-
-```bash
-python main.py --dataset tox21 --shot 10 
-```
-
-The evaluation results will be printed in the console and saved in the result folder.
-
-## 4. Ablation Analysis
+## 3. Ablation Analysis
 
 To reproduce the ablation experiments, run:
 
@@ -61,7 +52,7 @@ python ablation.py --dataset tox21 --shot 10
 
 This script evaluates the contribution of different components in HMAN, such as hierarchical attention and weighted loss design.
 
-## 5. Visualization
+## 4. Visualization
 
 To visualize the experimental results or the identified key substructures, run:
 
