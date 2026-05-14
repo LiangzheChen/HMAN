@@ -30,13 +30,13 @@ The main training procedure is implemented in `main.py`.
 To train HMAN on a specific dataset, run:
 
 ```bash
-python main.py --dataset tox21 --shot 10 
+python main.py --dataset tox21 --n_shot_train 10 
 ```
 
 Example for another dataset:
 
 ```bash
-python main.py --dataset sider --shot 10 
+python main.py --dataset sider --n_shot_train 10
 ```
 
 The trained model checkpoints and logs will be saved automatically.
@@ -47,7 +47,7 @@ The trained model checkpoints and logs will be saved automatically.
 To reproduce the ablation experiments, run:
 
 ```bash
-python ablation.py --dataset tox21 --shot 10
+python ablation.py --dataset tox21 
 ```
 
 This script evaluates the contribution of different components in HMAN, such as hierarchical attention and weighted loss design.
@@ -57,7 +57,7 @@ This script evaluates the contribution of different components in HMAN, such as 
 To visualize the experimental results or the identified key substructures, run:
 
 ```bash
-python visualization.py --dataset tox21 --shot 10
+python visualization.py --dataset tox21 
 ```
 
 The generated figures will be saved in the visualization folder.
