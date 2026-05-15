@@ -108,27 +108,46 @@ def mol_to_graph_data_obj_simple(mol) -> Data:
 
 def _load_binary_json_dataset(input_path: str):
     """
-    Load the task-specific JSON format used in the original baseline code.
+    Load binary molecular task JSON.
 
     Expected format:
         [
-            [negative_smiles_1, negative_smiles_2, ...],
-            [positive_smiles_1, positive_smiles_2, ...]
+            ["negative_smiles_1", "negative_smiles_2", ...],
+            ["positive_smiles_1", "positive_smiles_2", ...]
         ]
-
-    The returned data are ordered as:
-        all negative molecules first, then all positive molecules.
-
-    This ordering is important because the few-shot sampler uses the
-    precomputed class boundary to sample negative and positive examples.
     """
-    with open(input_path, "r") as f:
-        binary_list = json.load(f)
+    if not os.path.exists(input_path):
+        raise FileNotFoundError(f"JSON file does not exist: {input_path}")
+
+    if os.path.getsize(input_path) == 0:
+        raise ValueError(f"JSON file is empty: {input_path}")
+
+    try:
+        with open(input_path, "r", encoding="utf-8") as f:
+            binary_list = json.load(f)
+    except json.JSONDecodeError as e:
+        raise ValueError(
+            f"Failed to parse JSON file: {input_path}\n"
+            f"Please check whether this file is a valid JSON file.\n"
+            f"Expected format: [[negative_smiles...], [positive_smiles...]]"
+        ) from e
+
+    if not isinstance(binary_list, list) or len(binary_list) != 2:
+        raise ValueError(
+            f"Invalid JSON format in {input_path}. "
+            f"Expected a list with two elements: [negative_smiles, positive_smiles]."
+        )
 
     smiles_list = []
     labels = []
 
     for class_id, smiles_group in enumerate(binary_list):
+        if not isinstance(smiles_group, list):
+            raise ValueError(
+                f"Invalid class group in {input_path}. "
+                f"Each class should be a list of SMILES strings."
+            )
+
         for smi in smiles_group:
             smiles_list.append(smi)
             labels.append(class_id)
@@ -187,7 +206,18 @@ class MoleculeTaskDataset(InMemoryDataset):
         if len(self.raw_paths) == 0:
             raise FileNotFoundError(f"No raw file found in {self.raw_dir}")
 
-        input_path = self.raw_paths[0]
+        json_paths = [
+            path for path in self.raw_paths
+            if path.lower().endswith(".json")
+        ]
+
+        if len(json_paths) == 0:
+            raise FileNotFoundError(
+                f"No JSON file found in raw directory: {self.raw_dir}. "
+                f"Current raw files are: {self.raw_paths}"
+            )
+
+        input_path = json_paths[0]
 
         smiles_list, rdkit_mol_objs, labels = _load_binary_json_dataset(input_path)
 
@@ -478,45 +508,55 @@ def _find_task_root(data_dir: str, dataset: str, task_id: int) -> str:
     """
     Find the root directory for a task.
 
-    This function is intentionally tolerant because different baseline codes
-    often store task data with slightly different directory names.
+    Compatible with the original baseline format:
+        data/{dataset}/new/{task_id + 1}/raw/*.json
 
-    Expected final structure for MoleculeTaskDataset:
-        task_root/
-            raw/
-                xxx.json
-            processed/
-                geometric_data_processed.pt
+    Also supports:
+        data/{dataset}/{task_id}/raw/*.json
+        data/{dataset}/{task_id}.json
     """
     dataset = dataset.lower()
 
     candidates = [
+        # Original baseline format
+        os.path.join(data_dir, dataset, "new", str(task_id + 1)),
+        os.path.join(data_dir, dataset, "new", str(task_id)),
+
+        # Cleaned possible formats
         os.path.join(data_dir, dataset, str(task_id)),
         os.path.join(data_dir, dataset, f"task_{task_id}"),
         os.path.join(data_dir, dataset, f"{task_id}"),
-        os.path.join(data_dir, dataset),
     ]
 
     for path in candidates:
         raw_dir = os.path.join(path, "raw")
-        if os.path.isdir(raw_dir) and len(os.listdir(raw_dir)) > 0:
-            return path
 
-    # If no processed PyG-style task folder is found, create a task folder
-    # assuming raw json files are stored directly under data_dir/dataset.
+        if os.path.isdir(raw_dir):
+            json_files = [
+                f for f in os.listdir(raw_dir)
+                if f.lower().endswith(".json")
+            ]
+
+            if len(json_files) > 0:
+                return path
+
+    # Flat json format
     flat_candidates = [
         os.path.join(data_dir, dataset, f"{task_id}.json"),
+        os.path.join(data_dir, dataset, f"{task_id + 1}.json"),
         os.path.join(data_dir, dataset, f"task_{task_id}.json"),
-        os.path.join(data_dir, dataset, f"{dataset}_{task_id}.json"),
+        os.path.join(data_dir, dataset, f"task_{task_id + 1}.json"),
+        os.path.join(data_dir, dataset, "new", f"{task_id + 1}.json"),
     ]
 
     for raw_file in flat_candidates:
         if os.path.isfile(raw_file):
-            task_root = os.path.join(data_dir, dataset, str(task_id))
+            task_root = os.path.join(data_dir, dataset, "new", str(task_id + 1))
             raw_dir = os.path.join(task_root, "raw")
             os.makedirs(raw_dir, exist_ok=True)
 
             target_file = os.path.join(raw_dir, os.path.basename(raw_file))
+
             if not os.path.exists(target_file):
                 import shutil
                 shutil.copy(raw_file, target_file)
@@ -524,9 +564,9 @@ def _find_task_root(data_dir: str, dataset: str, task_id: int) -> str:
             return task_root
 
     raise FileNotFoundError(
-        f"Cannot find raw data for dataset={dataset}, task_id={task_id}. "
-        f"Please organize data as either:\n"
-        f"  {data_dir}/{dataset}/{task_id}/raw/*.json\n"
+        f"Cannot find JSON raw data for dataset={dataset}, task_id={task_id}. "
+        f"Expected format like:\n"
+        f"  {data_dir}/{dataset}/new/{task_id + 1}/raw/*.json\n"
         f"or\n"
         f"  {data_dir}/{dataset}/{task_id}.json"
     )
